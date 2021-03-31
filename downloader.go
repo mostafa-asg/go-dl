@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -19,15 +21,47 @@ type Config struct {
 	OutputDir   string
 
 	// output filename
-	Filename string
+	Filename       string
+	fullOutputPath string
+	mutex          *sync.Mutex
 }
 
-func (c Config) fullOutputPath() string {
-	return path.Join(c.OutputDir, c.Filename)
+func fileNameWithoutExtension(fileName string) string {
+	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
+}
+
+func (c *Config) getFullOutputPath() string {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.fullOutputPath != "" {
+		return c.fullOutputPath
+	}
+
+	c.fullOutputPath = path.Join(c.OutputDir, c.Filename)
+
+	// Add a number to the filename if file already exist
+	// For instance, if filename `hello.pdf` already exist
+	// it returns hello(1).pdf
+	if _, err := os.Stat(c.fullOutputPath); err == nil {
+		counter := 1
+		filename := fileNameWithoutExtension(c.Filename)
+		ext := filepath.Ext(c.Filename)
+
+		for err == nil {
+			log.Printf("%s alread exist", c.Filename)
+			c.Filename = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
+			c.fullOutputPath = path.Join(c.OutputDir, c.Filename)
+			_, err = os.Stat(c.fullOutputPath)
+			counter += 1
+		}
+	}
+
+	return c.fullOutputPath
 }
 
 type downloader struct {
-	config Config
+	config *Config
 }
 
 func New(url string) (*downloader, error) {
@@ -37,7 +71,7 @@ func New(url string) (*downloader, error) {
 
 	filename := path.Base(url)
 
-	config := Config{
+	config := &Config{
 		Url:         url,
 		Concurrency: 1,
 		OutputDir:   ".",
@@ -47,7 +81,7 @@ func New(url string) (*downloader, error) {
 	return NewFromConfig(config)
 }
 
-func NewFromConfig(config Config) (*downloader, error) {
+func NewFromConfig(config *Config) (*downloader, error) {
 	if config.Url == "" {
 		return nil, errors.New("Url is empty")
 	}
@@ -62,6 +96,7 @@ func NewFromConfig(config Config) (*downloader, error) {
 		config.Filename = path.Base(config.Url)
 		log.Printf("Output file: %s", config.Filename)
 	}
+	config.mutex = &sync.Mutex{}
 
 	return &downloader{config: config}, nil
 }
@@ -93,7 +128,7 @@ func (d *downloader) simpleDownload() {
 	}
 	defer res.Body.Close()
 
-	f, err := os.OpenFile(d.config.fullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(d.config.getFullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -132,14 +167,14 @@ func (d *downloader) multiDownload(contentSize int) {
 }
 
 func (d *downloader) merge() {
-	destination, err := os.OpenFile(d.config.fullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
+	destination, err := os.OpenFile(d.config.getFullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer destination.Close()
 
 	for i := 1; i <= d.config.Concurrency; i++ {
-		filename := d.config.fullOutputPath() + ".part" + strconv.Itoa(i)
+		filename := d.config.getFullOutputPath() + ".part" + strconv.Itoa(i)
 		source, err := os.OpenFile(filename, os.O_RDONLY, 0666)
 		if err != nil {
 			log.Fatal(err)
@@ -165,7 +200,7 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 	}
 	defer res.Body.Close()
 
-	outputPath := d.config.fullOutputPath() + ".part" + strconv.Itoa(partialNum)
+	outputPath := d.config.getFullOutputPath() + ".part" + strconv.Itoa(partialNum)
 	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
