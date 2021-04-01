@@ -23,41 +23,33 @@ type Config struct {
 	// output filename
 	Filename       string
 	fullOutputPath string
-	mutex          *sync.Mutex
 }
 
-func fileNameWithoutExtension(fileName string) string {
-	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
+func getFilenameAndExt(fileName string) (string, string) {
+	ext := filepath.Ext(fileName)
+	return strings.TrimSuffix(fileName, ext), ext
 }
 
-func (c *Config) getFullOutputPath() string {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	if c.fullOutputPath != "" {
-		return c.fullOutputPath
-	}
-
-	c.fullOutputPath = path.Join(c.OutputDir, c.Filename)
+func getFullOutputPath(outputDir, filenameWithExt string) string {
+	fullOutputPath := path.Join(outputDir, filenameWithExt)
 
 	// Add a number to the filename if file already exist
 	// For instance, if filename `hello.pdf` already exist
 	// it returns hello(1).pdf
-	if _, err := os.Stat(c.fullOutputPath); err == nil {
+	if _, err := os.Stat(fullOutputPath); err == nil {
 		counter := 1
-		filename := fileNameWithoutExtension(c.Filename)
-		ext := filepath.Ext(c.Filename)
+		filename, ext := getFilenameAndExt(filenameWithExt)
 
 		for err == nil {
-			log.Printf("%s alread exist", c.Filename)
-			c.Filename = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
-			c.fullOutputPath = path.Join(c.OutputDir, c.Filename)
-			_, err = os.Stat(c.fullOutputPath)
+			log.Printf("File %s alread exist", filenameWithExt)
+			filenameWithExt = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
+			fullOutputPath = path.Join(outputDir, filenameWithExt)
+			_, err = os.Stat(fullOutputPath)
 			counter += 1
 		}
 	}
 
-	return c.fullOutputPath
+	return fullOutputPath
 }
 
 type downloader struct {
@@ -94,9 +86,9 @@ func NewFromConfig(config *Config) (*downloader, error) {
 	}
 	if config.Filename == "" {
 		config.Filename = path.Base(config.Url)
-		log.Printf("Output file: %s", config.Filename)
 	}
-	config.mutex = &sync.Mutex{}
+	config.fullOutputPath = getFullOutputPath(config.OutputDir, config.Filename)
+	log.Printf("Output file: %s", config.Filename)
 
 	return &downloader{config: config}, nil
 }
@@ -128,7 +120,7 @@ func (d *downloader) simpleDownload() {
 	}
 	defer res.Body.Close()
 
-	f, err := os.OpenFile(d.config.getFullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(d.config.fullOutputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -167,14 +159,14 @@ func (d *downloader) multiDownload(contentSize int) {
 }
 
 func (d *downloader) merge() {
-	destination, err := os.OpenFile(d.config.getFullOutputPath(), os.O_CREATE|os.O_WRONLY, 0666)
+	destination, err := os.OpenFile(d.config.fullOutputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer destination.Close()
 
 	for i := 1; i <= d.config.Concurrency; i++ {
-		filename := d.config.getFullOutputPath() + ".part" + strconv.Itoa(i)
+		filename := d.config.fullOutputPath + ".part" + strconv.Itoa(i)
 		source, err := os.OpenFile(filename, os.O_RDONLY, 0666)
 		if err != nil {
 			log.Fatal(err)
@@ -200,7 +192,7 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 	}
 	defer res.Body.Close()
 
-	outputPath := d.config.getFullOutputPath() + ".part" + strconv.Itoa(partialNum)
+	outputPath := d.config.fullOutputPath + ".part" + strconv.Itoa(partialNum)
 	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
