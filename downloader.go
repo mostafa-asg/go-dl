@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +21,7 @@ type Config struct {
 
 	// output filename
 	Filename       string
+	CopyBufferSize int
 	fullOutputPath string
 }
 
@@ -61,13 +61,9 @@ func New(url string) (*downloader, error) {
 		return nil, errors.New("Url is empty")
 	}
 
-	filename := path.Base(url)
-
 	config := &Config{
 		Url:         url,
 		Concurrency: 1,
-		OutputDir:   ".",
-		Filename:    filename,
 	}
 
 	return NewFromConfig(config)
@@ -86,6 +82,9 @@ func NewFromConfig(config *Config) (*downloader, error) {
 	}
 	if config.Filename == "" {
 		config.Filename = path.Base(config.Url)
+	}
+	if config.CopyBufferSize == 0 {
+		config.CopyBufferSize = 32 * 1024
 	}
 	config.fullOutputPath = getFullOutputPath(config.OutputDir, config.Filename)
 	log.Printf("Output file: %s", config.Filename)
@@ -116,20 +115,23 @@ func (d *downloader) Download() {
 
 // download normally, without concurrency
 func (d *downloader) simpleDownload() {
+	// make a request
 	res, err := http.Get(d.config.Url)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
 
+	// create the output file
 	f, err := os.OpenFile(d.config.fullOutputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
 
-	bytes, err := ioutil.ReadAll(res.Body)
-	_, err = f.Write(bytes)
+	// copy to output file
+	buffer := make([]byte, d.config.CopyBufferSize)
+	_, err = io.CopyBuffer(f, res.Body, buffer)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -182,18 +184,21 @@ func (d *downloader) merge() {
 func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	// create a request
 	req, err := http.NewRequest("GET", d.config.Url, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", rangeStart, rangeStop))
 
+	// make a request
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer res.Body.Close()
 
+	// create the output file
 	outputPath := d.config.fullOutputPath + ".part" + strconv.Itoa(partialNum)
 	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
@@ -201,8 +206,9 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 	}
 	defer f.Close()
 
-	bytes, err := ioutil.ReadAll(res.Body)
-	_, err = f.Write(bytes)
+	// copy to output file
+	buffer := make([]byte, d.config.CopyBufferSize)
+	_, err = io.CopyBuffer(f, res.Body, buffer)
 	if err != nil {
 		log.Fatal(err)
 	}
