@@ -94,13 +94,15 @@ func NewFromConfig(config *Config) (*downloader, error) {
 }
 
 func (d *downloader) Download() {
-	res, err := http.Head(d.config.Url)
-	if err != nil {
-		log.Fatal(err)
-	}
+	if d.config.Concurrency == 1 {
+		d.simpleDownload()
+	} else {
+		res, err := http.Head(d.config.Url)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	if res.StatusCode == http.StatusOK {
-		if d.config.Concurrency > 1 && res.Header.Get("Accept-Ranges") == "bytes" {
+		if res.StatusCode == http.StatusOK && res.Header.Get("Accept-Ranges") == "bytes" {
 			contentSize, err := strconv.Atoi(res.Header.Get("Content-Length"))
 			if err != nil {
 				log.Fatal(err)
