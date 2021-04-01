@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 type Config struct {
@@ -129,9 +131,11 @@ func (d *downloader) simpleDownload() {
 	}
 	defer f.Close()
 
+	bar := progressbar.DefaultBytes(int64(res.ContentLength), "downloading")
+
 	// copy to output file
 	buffer := make([]byte, d.config.CopyBufferSize)
-	_, err = io.CopyBuffer(f, res.Body, buffer)
+	_, err = io.CopyBuffer(io.MultiWriter(f, bar), res.Body, buffer)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -148,11 +152,13 @@ func (d *downloader) multiDownload(contentSize int) {
 	wg := &sync.WaitGroup{}
 	wg.Add(d.config.Concurrency)
 
+	bar := progressbar.DefaultBytes(int64(contentSize), "downloading")
+
 	for i := 1; i <= d.config.Concurrency; i++ {
 		if i == d.config.Concurrency {
-			go d.downloadPartial(startRange, contentSize, i, wg)
+			go d.downloadPartial(startRange, contentSize, i, wg, bar)
 		} else {
-			go d.downloadPartial(startRange, startRange+partSize, i, wg)
+			go d.downloadPartial(startRange, startRange+partSize, i, wg, bar)
 		}
 
 		startRange += partSize + 1
@@ -181,7 +187,7 @@ func (d *downloader) merge() {
 	}
 }
 
-func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup) {
+func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup, bar *progressbar.ProgressBar) {
 	defer wg.Done()
 
 	// create a request
@@ -208,7 +214,7 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 
 	// copy to output file
 	buffer := make([]byte, d.config.CopyBufferSize)
-	_, err = io.CopyBuffer(f, res.Body, buffer)
+	_, err = io.CopyBuffer(io.MultiWriter(f, bar), res.Body, buffer)
 	if err != nil {
 		log.Fatal(err)
 	}
