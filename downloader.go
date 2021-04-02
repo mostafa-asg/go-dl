@@ -24,6 +24,7 @@ type Config struct {
 	// output filename
 	Filename       string
 	CopyBufferSize int
+	Resume         bool
 	fullOutputPath string
 }
 
@@ -94,6 +95,10 @@ func NewFromConfig(config *Config) (*downloader, error) {
 	return &downloader{config: config}, nil
 }
 
+func (d *downloader) getPartFilename(partNum int) string {
+	return d.config.fullOutputPath + ".part" + strconv.Itoa(partNum)
+}
+
 func (d *downloader) Download() {
 	if d.config.Concurrency == 1 {
 		d.simpleDownload()
@@ -155,10 +160,29 @@ func (d *downloader) multiDownload(contentSize int) {
 	bar := progressbar.DefaultBytes(int64(contentSize), "downloading")
 
 	for i := 1; i <= d.config.Concurrency; i++ {
+
+		// handle resume
+		downloaded := 0
+		if d.config.Resume {
+			filePath := d.getPartFilename(i)
+			f, err := os.Open(filePath)
+			if err != nil {
+				log.Fatalf("Cannot resume.Cannot read part file %s", filePath)
+			}
+			fileInfo, err := f.Stat()
+			if err != nil {
+				log.Fatalf("Cannot resume.Cannot read part file %s", filePath)
+			}
+			downloaded += int(fileInfo.Size()) + 1 // +1 means request next byte from the server
+
+			// update progress bar
+			bar.Add64(fileInfo.Size())
+		}
+
 		if i == d.config.Concurrency {
-			go d.downloadPartial(startRange, contentSize, i, wg, bar)
+			go d.downloadPartial(startRange+downloaded, contentSize, i, wg, bar)
 		} else {
-			go d.downloadPartial(startRange, startRange+partSize, i, wg, bar)
+			go d.downloadPartial(startRange+downloaded, startRange+partSize, i, wg, bar)
 		}
 
 		startRange += partSize + 1
@@ -176,7 +200,7 @@ func (d *downloader) merge() {
 	defer destination.Close()
 
 	for i := 1; i <= d.config.Concurrency; i++ {
-		filename := d.config.fullOutputPath + ".part" + strconv.Itoa(i)
+		filename := d.getPartFilename(i)
 		source, err := os.OpenFile(filename, os.O_RDONLY, 0666)
 		if err != nil {
 			log.Fatal(err)
@@ -205,8 +229,8 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 	defer res.Body.Close()
 
 	// create the output file
-	outputPath := d.config.fullOutputPath + ".part" + strconv.Itoa(partialNum)
-	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY, 0666)
+	outputPath := d.getPartFilename(partialNum)
+	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -13,6 +13,7 @@ func main() {
 	outputDir := flag.String("o", ".", "Output directory")
 	filename := flag.String("f", "", "Output file name")
 	bufferSize := flag.Int("buffer-size", 32*1024, "The buffer size to copy from http response body")
+	resume := flag.Bool("resume", false, "Resume the download")
 
 	flag.Parse()
 	if *url == "" {
@@ -25,6 +26,7 @@ func main() {
 		OutputDir:      *outputDir,
 		Filename:       *filename,
 		CopyBufferSize: *bufferSize,
+		Resume:         *resume,
 	}
 	d, err := downloader.NewFromConfig(config)
 	if err != nil {
