@@ -232,7 +232,11 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 
 	// create the output file
 	outputPath := d.getPartFilename(partialNum)
-	f, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	flags := os.O_CREATE | os.O_WRONLY
+	if d.config.Resume {
+		flags = flags | os.O_APPEND
+	}
+	f, err := os.OpenFile(outputPath, flags, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
