@@ -33,30 +33,32 @@ func getFilenameAndExt(fileName string) (string, string) {
 	return strings.TrimSuffix(fileName, ext), ext
 }
 
+type downloader struct {
+	config *Config
+}
+
 // Add a number to the filename if file already exist
 // For instance, if filename `hello.pdf` already exist
 // it returns hello(1).pdf
-func renameFilenameIfNecessary(outputDir, filenameWithExt string) string {
-	fullOutputPath := path.Join(outputDir, filenameWithExt)
+func (d *downloader) renameFilenameIfNecessary() {
+	if d.config.Resume {
+		return // in resume mode, no need to rename
+	}
+
+	fullOutputPath := path.Join(d.config.OutputDir, d.config.Filename)
 
 	if _, err := os.Stat(fullOutputPath); err == nil {
 		counter := 1
-		filename, ext := getFilenameAndExt(filenameWithExt)
+		filename, ext := getFilenameAndExt(d.config.Filename)
 
 		for err == nil {
-			log.Printf("File %s already exist", filenameWithExt)
-			filenameWithExt = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
-			fullOutputPath = path.Join(outputDir, filenameWithExt)
+			log.Printf("File %s already exist", d.config.Filename)
+			d.config.Filename = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
+			fullOutputPath = path.Join(d.config.OutputDir, d.config.Filename)
 			_, err = os.Stat(fullOutputPath)
 			counter += 1
 		}
 	}
-
-	return filenameWithExt
-}
-
-type downloader struct {
-	config *Config
 }
 
 func New(url string) (*downloader, error) {
@@ -89,12 +91,13 @@ func NewFromConfig(config *Config) (*downloader, error) {
 	if config.CopyBufferSize == 0 {
 		config.CopyBufferSize = 32 * 1024
 	}
+
+	d := &downloader{config: config}
 	// rename file if such file already exist
-	config.Filename = renameFilenameIfNecessary(config.OutputDir, config.Filename)
+	d.renameFilenameIfNecessary()
 	log.Printf("Output file: %s", config.Filename)
 	config.fullOutputPath = path.Join(config.OutputDir, config.Filename)
-
-	return &downloader{config: config}, nil
+	return d, nil
 }
 
 func (d *downloader) getPartFilename(partNum int) string {
