@@ -102,28 +102,28 @@ func (d *downloader) getPartFilename(partNum int) string {
 }
 
 func (d *downloader) Download() {
-	if d.config.Concurrency == 1 {
-		d.simpleDownload()
-	} else {
-		res, err := http.Head(d.config.Url)
+	res, err := http.Head(d.config.Url)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if res.StatusCode == http.StatusOK && res.Header.Get("Accept-Ranges") == "bytes" {
+		contentSize, err := strconv.Atoi(res.Header.Get("Content-Length"))
 		if err != nil {
 			log.Fatal(err)
 		}
-
-		if res.StatusCode == http.StatusOK && res.Header.Get("Accept-Ranges") == "bytes" {
-			contentSize, err := strconv.Atoi(res.Header.Get("Content-Length"))
-			if err != nil {
-				log.Fatal(err)
-			}
-			d.multiDownload(contentSize)
-		} else {
-			d.simpleDownload()
-		}
+		d.multiDownload(contentSize)
+	} else {
+		d.simpleDownload()
 	}
 }
 
-// download normally, without concurrency
+// Server does not support partial download for this file
 func (d *downloader) simpleDownload() {
+	if d.config.Resume {
+		log.Fatal("Cannot resume. Must be downloaded again")
+	}
+
 	// make a request
 	res, err := http.Get(d.config.Url)
 	if err != nil {
