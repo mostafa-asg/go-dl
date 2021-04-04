@@ -153,9 +153,6 @@ func (d *downloader) simpleDownload() {
 
 // download concurrently
 func (d *downloader) multiDownload(contentSize int) {
-	if d.config.Concurrency <= 1 {
-		panic("Invalid concurrency value. Should be greater than 1.")
-	}
 	partSize := contentSize / d.config.Concurrency
 
 	startRange := 0
