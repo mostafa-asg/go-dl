@@ -24,6 +24,8 @@ type Config struct {
 	// output filename
 	Filename       string
 	CopyBufferSize int
+
+	// is in resume mode?
 	Resume         bool
 	fullOutputPath string
 }
