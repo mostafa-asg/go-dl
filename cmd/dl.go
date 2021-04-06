@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"os"
+	"os/signal"
 
 	downloader "github.com/mostafa-asg/go-dl"
 )
@@ -32,5 +34,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+
+	termCh := make(chan os.Signal)
+	signal.Notify(termCh, os.Interrupt)
+	go func() {
+		<-termCh
+		println("\nExiting ...")
+		d.Pause()
+	}()
+
 	d.Download()
+	if d.Paused {
+		println("\nDownload has paused. Resume it again with -resume=true parameter.")
+	} else {
+		println("Downloadd completed.")
+	}
 }

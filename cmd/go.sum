@@ -9,6 +9,8 @@ github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db h1:62I3jR2Em
 github.com/mitchellh/colorstring v0.0.0-20190213212951-d06e56a500db/go.mod h1:l0dey0ia/Uv7NcFFVbCLtqEBQbrT4OCwCSKTEv6enCw=
 github.com/mostafa-asg/go-dl v0.2.2 h1:ULLQOUfftnFVmaQEi0934UOxXYEOqGqxR4xBIA8GS9c=
 github.com/mostafa-asg/go-dl v0.2.2/go.mod h1:VD7iqTrZGyyzMT0c5BX0/pql0B3aoY7yAjBNhDO8sH4=
+github.com/mostafa-asg/go-dl v0.3.0 h1:kX6DdRnB7pB66jxvHwcIOrGNRMGVRxkSYTGqcAzIaVQ=
+github.com/mostafa-asg/go-dl v0.3.0/go.mod h1:VD7iqTrZGyyzMT0c5BX0/pql0B3aoY7yAjBNhDO8sH4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
