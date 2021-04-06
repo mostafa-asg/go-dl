@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -36,7 +37,15 @@ func getFilenameAndExt(fileName string) (string, string) {
 }
 
 type downloader struct {
-	config *Config
+	Paused  bool
+	config  *Config
+	context context.Context
+	cancel  context.CancelFunc
+}
+
+func (d *downloader) Pause() {
+	d.Paused = true
+	d.cancel()
 }
 
 // Add a number to the filename if file already exist
@@ -91,10 +100,14 @@ func NewFromConfig(config *Config) (*downloader, error) {
 		config.Filename = path.Base(config.Url)
 	}
 	if config.CopyBufferSize == 0 {
-		config.CopyBufferSize = 32 * 1024
+		config.CopyBufferSize = 1024
 	}
 
 	d := &downloader{config: config}
+	ctx, cancel := context.WithCancel(context.Background())
+	d.context = ctx
+	d.cancel = cancel
+
 	// rename file if such file already exist
 	d.renameFilenameIfNecessary()
 	log.Printf("Output file: %s", config.Filename)
@@ -170,17 +183,14 @@ func (d *downloader) multiDownload(contentSize int) {
 		if d.config.Resume {
 			filePath := d.getPartFilename(i)
 			f, err := os.Open(filePath)
-			if err != nil {
-				log.Fatalf("Cannot resume.Cannot read part file %s", filePath)
+			if err == nil {
+				fileInfo, err := f.Stat()
+				if err == nil {
+					downloaded = int(fileInfo.Size())
+					// update progress bar
+					bar.Add64(int64(downloaded))
+				}
 			}
-			fileInfo, err := f.Stat()
-			if err != nil {
-				log.Fatalf("Cannot resume.Cannot read part file %s", filePath)
-			}
-			downloaded += int(fileInfo.Size()) + 1 // +1 means request next byte from the server
-
-			// update progress bar
-			bar.Add64(fileInfo.Size())
 		}
 
 		if i == d.config.Concurrency {
@@ -193,7 +203,9 @@ func (d *downloader) multiDownload(contentSize int) {
 	}
 
 	wg.Wait()
-	d.merge()
+	if !d.Paused {
+		d.merge()
+	}
 }
 
 func (d *downloader) merge() {
@@ -217,6 +229,10 @@ func (d *downloader) merge() {
 
 func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup, bar *progressbar.ProgressBar) {
 	defer wg.Done()
+	if rangeStart >= rangeStop {
+		// nothing to download
+		return
+	}
 
 	// create a request
 	req, err := http.NewRequest("GET", d.config.Url, nil)
@@ -245,9 +261,19 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 	defer f.Close()
 
 	// copy to output file
-	buffer := make([]byte, d.config.CopyBufferSize)
-	_, err = io.CopyBuffer(io.MultiWriter(f, bar), res.Body, buffer)
-	if err != nil {
-		log.Fatal(err)
+	for {
+		select {
+		case <-d.context.Done():
+			return
+		default:
+			_, err = io.CopyN(io.MultiWriter(f, bar), res.Body, int64(d.config.CopyBufferSize))
+			if err != nil {
+				if err == io.EOF {
+					return
+				} else {
+					log.Fatal(err)
+				}
+			}
+		}
 	}
 }
