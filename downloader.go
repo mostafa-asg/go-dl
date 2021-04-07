@@ -31,14 +31,18 @@ type Config struct {
 	fullOutputPath string
 }
 
+// returns filename and it's extention
 func getFilenameAndExt(fileName string) (string, string) {
 	ext := filepath.Ext(fileName)
 	return strings.TrimSuffix(fileName, ext), ext
 }
 
 type downloader struct {
-	Paused  bool
-	config  *Config
+	// true if the download has been paused
+	Paused bool
+	config *Config
+
+	// use to pause the download gracefully
 	context context.Context
 	cancel  context.CancelFunc
 }
