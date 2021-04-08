@@ -45,6 +45,8 @@ type downloader struct {
 	// use to pause the download gracefully
 	context context.Context
 	cancel  context.CancelFunc
+
+	bar *progressbar.ProgressBar
 }
 
 func (d *downloader) Pause() {
@@ -55,6 +57,15 @@ func (d *downloader) Pause() {
 func (d *downloader) Resume() {
 	d.config.Resume = true
 	d.Download()
+}
+
+// Returns the progress bar's state
+func (d *downloader) ProgressState() progressbar.State {
+	if d.bar != nil {
+		return d.bar.State()
+	}
+
+	return progressbar.State{}
 }
 
 // Add a number to the filename if file already exist
@@ -165,11 +176,11 @@ func (d *downloader) simpleDownload() {
 	}
 	defer f.Close()
 
-	bar := progressbar.DefaultBytes(int64(res.ContentLength), "downloading")
+	d.bar = progressbar.DefaultBytes(int64(res.ContentLength), "downloading")
 
 	// copy to output file
 	buffer := make([]byte, d.config.CopyBufferSize)
-	_, err = io.CopyBuffer(io.MultiWriter(f, bar), res.Body, buffer)
+	_, err = io.CopyBuffer(io.MultiWriter(f, d.bar), res.Body, buffer)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -183,7 +194,7 @@ func (d *downloader) multiDownload(contentSize int) {
 	wg := &sync.WaitGroup{}
 	wg.Add(d.config.Concurrency)
 
-	bar := progressbar.DefaultBytes(int64(contentSize), "downloading")
+	d.bar = progressbar.DefaultBytes(int64(contentSize), "downloading")
 
 	for i := 1; i <= d.config.Concurrency; i++ {
 
@@ -197,15 +208,15 @@ func (d *downloader) multiDownload(contentSize int) {
 				if err == nil {
 					downloaded = int(fileInfo.Size())
 					// update progress bar
-					bar.Add64(int64(downloaded))
+					d.bar.Add64(int64(downloaded))
 				}
 			}
 		}
 
 		if i == d.config.Concurrency {
-			go d.downloadPartial(startRange+downloaded, contentSize, i, wg, bar)
+			go d.downloadPartial(startRange+downloaded, contentSize, i, wg)
 		} else {
-			go d.downloadPartial(startRange+downloaded, startRange+partSize, i, wg, bar)
+			go d.downloadPartial(startRange+downloaded, startRange+partSize, i, wg)
 		}
 
 		startRange += partSize + 1
@@ -236,7 +247,7 @@ func (d *downloader) merge() {
 	}
 }
 
-func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup, bar *progressbar.ProgressBar) {
+func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, wg *sync.WaitGroup) {
 	defer wg.Done()
 	if rangeStart >= rangeStop {
 		// nothing to download
@@ -275,7 +286,7 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 		case <-d.context.Done():
 			return
 		default:
-			_, err = io.CopyN(io.MultiWriter(f, bar), res.Body, int64(d.config.CopyBufferSize))
+			_, err = io.CopyN(io.MultiWriter(f, d.bar), res.Body, int64(d.config.CopyBufferSize))
 			if err != nil {
 				if err == io.EOF {
 					return
