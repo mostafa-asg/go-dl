@@ -20,15 +20,13 @@ import (
 type Config struct {
 	Url         string
 	Concurrency int
-	OutputDir   string
 
 	// output filename
-	Filename       string
+	OutFilename    string
 	CopyBufferSize int
 
 	// is in resume mode?
-	Resume         bool
-	fullOutputPath string
+	Resume bool
 }
 
 // returns filename and it's extention
@@ -76,17 +74,16 @@ func (d *downloader) renameFilenameIfNecessary() {
 		return // in resume mode, no need to rename
 	}
 
-	fullOutputPath := path.Join(d.config.OutputDir, d.config.Filename)
-
-	if _, err := os.Stat(fullOutputPath); err == nil {
+	if _, err := os.Stat(d.config.OutFilename); err == nil {
 		counter := 1
-		filename, ext := getFilenameAndExt(d.config.Filename)
+		filename, ext := getFilenameAndExt(d.config.OutFilename)
+		outDir := filepath.Dir(d.config.OutFilename)
 
 		for err == nil {
-			log.Printf("File %s already exist", d.config.Filename)
-			d.config.Filename = fmt.Sprintf("%s(%d)%s", filename, counter, ext)
-			fullOutputPath = path.Join(d.config.OutputDir, d.config.Filename)
-			_, err = os.Stat(fullOutputPath)
+			log.Printf("File %s%s already exist", filename, ext)
+			newFilename := fmt.Sprintf("%s(%d)%s", filename, counter, ext)
+			d.config.OutFilename = path.Join(outDir, newFilename)
+			_, err = os.Stat(d.config.OutFilename)
 			counter += 1
 		}
 	}
@@ -113,11 +110,8 @@ func NewFromConfig(config *Config) (*downloader, error) {
 		config.Concurrency = 1
 		log.Print("Concurrency level: 1")
 	}
-	if config.OutputDir == "" {
-		config.OutputDir = "."
-	}
-	if config.Filename == "" {
-		config.Filename = path.Base(config.Url)
+	if config.OutFilename == "" {
+		config.OutFilename = path.Base(config.Url)
 	}
 	if config.CopyBufferSize == 0 {
 		config.CopyBufferSize = 1024
@@ -130,13 +124,12 @@ func NewFromConfig(config *Config) (*downloader, error) {
 
 	// rename file if such file already exist
 	d.renameFilenameIfNecessary()
-	log.Printf("Output file: %s", config.Filename)
-	config.fullOutputPath = path.Join(config.OutputDir, config.Filename)
+	log.Printf("Output file: %s", filepath.Base(config.OutFilename))
 	return d, nil
 }
 
 func (d *downloader) getPartFilename(partNum int) string {
-	return d.config.fullOutputPath + ".part" + strconv.Itoa(partNum)
+	return d.config.OutFilename + ".part" + strconv.Itoa(partNum)
 }
 
 func (d *downloader) Download() {
@@ -170,7 +163,7 @@ func (d *downloader) simpleDownload() {
 	defer res.Body.Close()
 
 	// create the output file
-	f, err := os.OpenFile(d.config.fullOutputPath, os.O_CREATE|os.O_WRONLY, 0666)
+	f, err := os.OpenFile(d.config.OutFilename, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -229,7 +222,7 @@ func (d *downloader) multiDownload(contentSize int) {
 }
 
 func (d *downloader) merge() {
-	destination, err := os.OpenFile(d.config.fullOutputPath, os.O_CREATE|os.O_WRONLY, 0666)
+	destination, err := os.OpenFile(d.config.OutFilename, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
