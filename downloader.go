@@ -52,6 +52,11 @@ func (d *downloader) Pause() {
 	d.cancel()
 }
 
+func (d *downloader) Resume() {
+	d.config.Resume = true
+	d.Download()
+}
+
 // Add a number to the filename if file already exist
 // For instance, if filename `hello.pdf` already exist
 // it returns hello(1).pdf
