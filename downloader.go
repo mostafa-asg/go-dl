@@ -54,6 +54,7 @@ func (d *downloader) Pause() {
 
 func (d *downloader) Resume() {
 	d.config.Resume = true
+	d.Paused = false
 	d.Download()
 }
 
@@ -118,9 +119,6 @@ func NewFromConfig(config *Config) (*downloader, error) {
 	}
 
 	d := &downloader{config: config}
-	ctx, cancel := context.WithCancel(context.Background())
-	d.context = ctx
-	d.cancel = cancel
 
 	// rename file if such file already exist
 	d.renameFilenameIfNecessary()
@@ -133,6 +131,10 @@ func (d *downloader) getPartFilename(partNum int) string {
 }
 
 func (d *downloader) Download() {
+	ctx, cancel := context.WithCancel(context.Background())
+	d.context = ctx
+	d.cancel = cancel
+
 	res, err := http.Head(d.config.Url)
 	if err != nil {
 		log.Fatal(err)
