@@ -13,6 +13,8 @@ github.com/mostafa-asg/go-dl v0.3.0 h1:kX6DdRnB7pB66jxvHwcIOrGNRMGVRxkSYTGqcAzIa
 github.com/mostafa-asg/go-dl v0.3.0/go.mod h1:VD7iqTrZGyyzMT0c5BX0/pql0B3aoY7yAjBNhDO8sH4=
 github.com/mostafa-asg/go-dl v0.4.0 h1:ZC6aUwOo7Y//aoLq35FTgBTNl2gfqPH5jzht10AeBXs=
 github.com/mostafa-asg/go-dl v0.4.0/go.mod h1:VD7iqTrZGyyzMT0c5BX0/pql0B3aoY7yAjBNhDO8sH4=
+github.com/mostafa-asg/go-dl v1.0.0 h1:scDKhOFu++85e9svX+diPKUx2yS0osDg+2Qh/ez/JT8=
+github.com/mostafa-asg/go-dl v1.0.0/go.mod h1:VD7iqTrZGyyzMT0c5BX0/pql0B3aoY7yAjBNhDO8sH4=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
