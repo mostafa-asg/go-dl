@@ -1,4 +1,4 @@
-package downloader_test
+package downloader
 
 import (
 	"bytes"
@@ -10,9 +10,30 @@ import (
 	"os"
 	"testing"
 	"time"
-
-	downloader "github.com/mostafa-asg/go-dl"
 )
+
+func TestDetectingFilename(t *testing.T) {
+	testCases := []struct {
+		URL      string
+		Filename string
+	}{
+		{
+			URL:      "http://www.yahoo.com/index.html",
+			Filename: "index.html",
+		},
+		{
+			URL:      "http://movie.com/a/k1.mkv?auth=1",
+			Filename: "k1.mkv",
+		},
+	}
+
+	for _, testCase := range testCases {
+		actual := detectFilename(testCase.URL)
+		if actual != testCase.Filename {
+			t.Errorf("Expected filename to be %s, got %s", testCase.Filename, actual)
+		}
+	}
+}
 
 func TestDownload(t *testing.T) {
 	files := http.Dir("./files/")
@@ -42,12 +63,12 @@ func TestDownload(t *testing.T) {
 	// otherwise downloader creates a new file
 	os.Remove(outFile.Name())
 
-	downloadConfig := downloader.Config{
+	downloadConfig := Config{
 		Url:         fmt.Sprintf("http://localhost:%d/book.pdf", port),
 		Concurrency: 1,
 		OutFilename: outFile.Name(),
 	}
-	d, err := downloader.NewFromConfig(&downloadConfig)
+	d, err := NewFromConfig(&downloadConfig)
 	if err != nil {
 		t.Fatal("Coudn't initialize downloader")
 	}
@@ -100,13 +121,13 @@ func TestParallelDownload(t *testing.T) {
 	// otherwise downloader creates a new file
 	os.Remove(outFile.Name())
 
-	downloadConfig := downloader.Config{
+	downloadConfig := Config{
 		Url:            fmt.Sprintf("http://localhost:%d/book.pdf", port),
 		Concurrency:    4,
 		OutFilename:    outFile.Name(),
 		CopyBufferSize: 1, // in order to download it very slowly
 	}
-	d, err := downloader.NewFromConfig(&downloadConfig)
+	d, err := NewFromConfig(&downloadConfig)
 	if err != nil {
 		t.Fatal("Coudn't initialize downloader")
 	}

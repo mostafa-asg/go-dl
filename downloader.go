@@ -112,7 +112,7 @@ func NewFromConfig(config *Config) (*downloader, error) {
 		log.Print("Concurrency level: 1")
 	}
 	if config.OutFilename == "" {
-		config.OutFilename = path.Base(config.Url)
+		config.OutFilename = detectFilename(config.Url)
 	}
 	if config.CopyBufferSize == 0 {
 		config.CopyBufferSize = 1024
@@ -291,4 +291,16 @@ func (d *downloader) downloadPartial(rangeStart, rangeStop int, partialNum int, 
 			}
 		}
 	}
+}
+
+func detectFilename(url string) string {
+	filename := path.Base(url)
+
+	// remove query parameters if there exist any
+	index := strings.IndexRune(filename, '?')
+	if index != -1 {
+		filename = filename[:index]
+	}
+
+	return filename
 }
